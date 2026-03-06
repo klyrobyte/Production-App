@@ -59,9 +59,9 @@ const BottomNav = ({ activeTab, onTabChange }: BottomNavProps) => {
           </button>
 
           {/* Scan - floating above */}
-          <div className="relative -top-5">
+          <div className="relative -top-7">
             <ScanButton onClick={() => onTabChange("scan")} />
-            <span className="block text-center text-[10px] font-medium text-muted-foreground mt-1">
+            <span className="block text-center text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mt-1">
               Scan
             </span>
           </div>
