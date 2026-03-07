@@ -16,11 +16,6 @@ const Index = () => {
         <div className="mt-2">
           {activeTab === "beranda" && <ProductionForm />}
           {activeTab === "profil" && <ProfileView />}
-          {activeTab === "scan" && (
-            <div className="flex flex-col items-center justify-center py-16">
-              <p className="text-sm text-muted-foreground">Scanner akan ditampilkan di sini.</p>
-            </div>
-          )}
         </div>
       </div>
 

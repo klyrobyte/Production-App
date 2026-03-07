@@ -11,15 +11,15 @@ const AppHeader = () => {
   return (
     <header className="flex items-center justify-between py-4">
       {/* Logo */}
-      <div className="h-9 w-9 rounded-lg bg-secondary flex items-center justify-center overflow-hidden">
+      <div className="flex items-center">
         <img
-          src="./cdn/comp.jpg"
+          src="./logoSC.png"
           alt="Company Logo"
-          className="h-full w-full object-cover"
+          className="h-8 w-auto object-contain"
           onError={(e) => {
             (e.target as HTMLImageElement).style.display = "none";
             (e.target as HTMLImageElement).parentElement!.innerHTML =
-              '<span class="text-xs font-bold text-foreground">CO</span>';
+              '<span class="text-xs font-bold text-foreground">SC</span>';
           }}
         />
       </div>

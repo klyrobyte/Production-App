@@ -1,5 +1,6 @@
 import { Home, User } from "lucide-react";
 import { useRef, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import ScanButton from "./ScanButton";
 
 interface BottomNavProps {
@@ -8,6 +9,7 @@ interface BottomNavProps {
 }
 
 const BottomNav = ({ activeTab, onTabChange }: BottomNavProps) => {
+  const navigate = useNavigate();
   const berandaRef = useRef<HTMLButtonElement>(null);
   const profilRef = useRef<HTMLButtonElement>(null);
   const [pillStyle, setPillStyle] = useState<React.CSSProperties>({});
@@ -45,14 +47,12 @@ const BottomNav = ({ activeTab, onTabChange }: BottomNavProps) => {
             className="flex flex-col items-center gap-0.5 px-6 py-2 rounded-2xl"
           >
             <Home
-              className={`w-5 h-5 transition-colors ${
-                activeTab === "beranda" ? "text-primary" : "text-muted-foreground"
-              }`}
+              className={`w-5 h-5 transition-colors ${activeTab === "beranda" ? "text-primary" : "text-muted-foreground"
+                }`}
             />
             <span
-              className={`text-[10px] font-medium transition-colors ${
-                activeTab === "beranda" ? "text-foreground" : "text-muted-foreground"
-              }`}
+              className={`text-[10px] font-medium transition-colors ${activeTab === "beranda" ? "text-foreground" : "text-muted-foreground"
+                }`}
             >
               Beranda
             </span>
@@ -60,8 +60,8 @@ const BottomNav = ({ activeTab, onTabChange }: BottomNavProps) => {
 
           {/* Scan - floating above */}
           <div className="flex flex-col items-center">
-            <div className="relative -top-4">
-              <ScanButton onClick={() => onTabChange("scan")} />
+            <div className="scan-button-wrap relative -top-4">
+              <ScanButton onClick={() => navigate("/scan")} />
             </div>
             <span className="text-[10px] font-medium text-muted-foreground">
               Scan
@@ -75,14 +75,12 @@ const BottomNav = ({ activeTab, onTabChange }: BottomNavProps) => {
             className="flex flex-col items-center gap-0.5 px-6 py-2 rounded-2xl"
           >
             <User
-              className={`w-5 h-5 transition-colors ${
-                activeTab === "profil" ? "text-primary" : "text-muted-foreground"
-              }`}
+              className={`w-5 h-5 transition-colors ${activeTab === "profil" ? "text-primary" : "text-muted-foreground"
+                }`}
             />
             <span
-              className={`text-[10px] font-medium transition-colors ${
-                activeTab === "profil" ? "text-foreground" : "text-muted-foreground"
-              }`}
+              className={`text-[10px] font-medium transition-colors ${activeTab === "profil" ? "text-foreground" : "text-muted-foreground"
+                }`}
             >
               Profil
             </span>
