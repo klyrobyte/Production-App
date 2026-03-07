@@ -52,6 +52,7 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
   }
@@ -61,21 +62,95 @@
 .liquid-glass {
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
-  background: linear-gradient(
-    180deg,
-    hsla(0, 0%, 100%, 0.08) 0%,
-    hsla(0, 0%, 100%, 0.03) 100%
-  );
+  background: linear-gradient(180deg,
+      hsla(0, 0%, 100%, 0.08) 0%,
+      hsla(0, 0%, 100%, 0.03) 100%);
   border: 1px solid hsla(0, 0%, 100%, 0.12);
+}
+
+/* Blue outer frame — always visible, wraps around the glass button */
+.scan-button-wrap {
+  position: relative;
+  transition: transform 0.15s ease;
+}
+
+.scan-button-wrap:active {
+  transform: scale(0.96);
+}
+
+.scan-button-wrap>button {
+  position: relative;
+  z-index: 1;
+}
+
+.scan-button-wrap::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 32px;
+  background: linear-gradient(180deg,
+      #22a8f7 0%,
+      #1a8fd4 100%);
+  opacity: 1;
+  pointer-events: none;
+  z-index: -1;
+  box-shadow:
+    inset 0 2px 8px rgba(255, 255, 255, 0.2),
+    0 6px 20px rgba(34, 168, 247, 0.35);
+}
+
+/* Glossy highlight on blue outer frame — always visible */
+.scan-button-wrap::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  right: -6px;
+  height: 45%;
+  border-radius: 32px 32px 50% 50%;
+  background: linear-gradient(180deg,
+      rgba(255, 255, 255, 0.3) 0%,
+      rgba(255, 255, 255, 0) 100%);
+  opacity: 1;
+  pointer-events: none;
+  z-index: -1;
 }
 
 .liquid-glass-active {
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
-  background: linear-gradient(
-    180deg,
-    hsla(190, 35%, 21%, 0.7) 0%,
-    hsla(190, 35%, 21%, 0.5) 100%
-  );
+  background: linear-gradient(180deg,
+      hsla(190, 35%, 21%, 0.7) 0%,
+      hsla(190, 35%, 21%, 0.5) 100%);
   border: 1px solid hsla(0, 0%, 100%, 0.1);
+}
+
+/* ── Scan page animations ─────────────────────────────────── */
+@keyframes scan-notif-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.scan-notif-enter {
+  animation: scan-notif-in 0.3s ease-out;
+}
+
+.scan-panel-open {
+  max-height: 300px;
+  padding-bottom: 0;
+  transition: max-height 320ms cubic-bezier(.22, .9, .23, 1),
+    opacity 320ms cubic-bezier(.22, .9, .23, 1);
+}
+
+.scan-panel-closed {
+  max-height: 28px;
+  transition: max-height 260ms cubic-bezier(.22, .9, .23, 1),
+    opacity 260ms cubic-bezier(.22, .9, .23, 1);
 }
