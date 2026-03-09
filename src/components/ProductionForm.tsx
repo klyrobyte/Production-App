@@ -10,14 +10,9 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
-  FACTORIES,
-  MACHINES_BY_FACTORY,
-  TONASE_MAP,
   SHIFTS,
-  OPERATORS,
-  SEBANGO_BY_MACHINE,
-  getSebangoDetail,
 } from "@/data/productionData";
+import { useProductionData, SebangoDetail } from "@/hooks/useProductionData";
 
 // ── Reusable dropdown ─────────────────────────────────────────────────
 interface CustomSelectProps {
@@ -27,6 +22,7 @@ interface CustomSelectProps {
   onChange: (v: string) => void;
   placeholder?: string;
   disabled?: boolean;
+  searchable?: boolean;
 }
 
 const CustomSelect = ({
@@ -36,8 +32,14 @@ const CustomSelect = ({
   onChange,
   placeholder,
   disabled,
+  searchable,
 }: CustomSelectProps) => {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const displayOptions = searchable && search
+    ? options.filter((opt) => opt.toLowerCase().includes(search.toLowerCase()))
+    : options;
 
   return (
     <div className="space-y-2">
@@ -67,26 +69,45 @@ const CustomSelect = ({
           </button>
         </PopoverTrigger>
         <PopoverContent
-          className="w-[var(--radix-popover-trigger-width)] p-1 bg-secondary border-border max-h-60 overflow-y-auto"
+          className="w-[var(--radix-popover-trigger-width)] p-1 bg-secondary border-border max-h-60 overflow-y-auto flex flex-col gap-1"
           align="start"
         >
-          {options.map((opt) => (
-            <button
-              key={opt}
-              onClick={() => {
-                onChange(opt);
-                setOpen(false);
-              }}
-              className={cn(
-                "w-full rounded-lg px-3 py-2.5 text-left text-sm transition-colors",
-                value === opt
-                  ? "bg-accent text-foreground"
-                  : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-              )}
-            >
-              {opt}
-            </button>
-          ))}
+          {searchable && (
+            <div className="sticky top-0 bg-secondary z-10 pb-1 pt-1 px-1">
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Ketik untuk mencari..."
+                className="w-full rounded-md bg-background px-3 py-2 text-sm text-foreground outline-none border border-border focus:border-[#22A8F7] transition-colors"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          )}
+          {displayOptions.length > 0 ? (
+            displayOptions.map((opt) => (
+              <button
+                key={opt}
+                onClick={() => {
+                  onChange(opt);
+                  setOpen(false);
+                  setSearch("");
+                }}
+                className={cn(
+                  "w-full rounded-lg px-3 py-2.5 text-left text-sm transition-colors",
+                  value === opt
+                    ? "bg-accent text-foreground"
+                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                )}
+              >
+                {opt}
+              </button>
+            ))
+          ) : (
+            <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+              Tidak ada hasil yang ditemukan.
+            </div>
+          )}
         </PopoverContent>
       </Popover>
     </div>
@@ -166,6 +187,18 @@ const ProductionForm = () => {
   const [sebango, setSebango] = useState("");
   const [detailOpen, setDetailOpen] = useState(false);
 
+  // Hook data
+  const {
+    factories,
+    machinesByFactory,
+    tonaseMap,
+    operators: operatorData,
+    sebangoOptions,
+    sebangoDetails,
+    loading: dbLoading,
+    error: dbError
+  } = useProductionData();
+
   // Production input fields
   const [planTeiTei, setPlanTeiTei] = useState("");
   const [actualTotal, setActualTotal] = useState("");
@@ -190,12 +223,12 @@ const ProductionForm = () => {
   const machineKey = factory && machine ? `${factory}|${machine}` : "";
 
   // Derived data
-  const machineOptions = factory ? MACHINES_BY_FACTORY[factory] ?? [] : [];
-  const tonase = machineKey ? TONASE_MAP[machineKey] ?? "-" : "";
-  const sebangoOptions = machineKey
-    ? SEBANGO_BY_MACHINE[machineKey] ?? []
-    : [];
-  const detail = sebango ? getSebangoDetail(sebango) : null;
+  const machineOptions = factory ? machinesByFactory[factory] ?? [] : [];
+  const tonase = machineKey ? tonaseMap[machineKey] ?? "-" : "";
+  const detail: SebangoDetail | null = sebango ? sebangoDetails[sebango] : null;
+
+  // Format operators appropriately dependent on db format
+  const operators = operatorData.map(op => op.name || op.nama_operator || op.operator || String(op.id)).filter(Boolean);
 
   // Check if all required fields are filled
   const isFormComplete = Boolean(
@@ -270,6 +303,12 @@ const ProductionForm = () => {
         Buat daftar produksi baru
       </h2>
 
+      {dbError && (
+        <div className="rounded-xl bg-destructive/10 p-4 text-sm text-destructive border border-destructive/20 font-medium">
+          Error connecting to database: {dbError}
+        </div>
+      )}
+
       {/* ── Date Picker ─────────────────────────────────────────── */}
       <div className="space-y-2">
         <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -308,9 +347,11 @@ const ProductionForm = () => {
       {/* ── Factory ─────────────────────────────────────────────── */}
       <CustomSelect
         label="Factory"
-        options={[...FACTORIES]}
+        options={factories}
         value={factory}
         onChange={handleFactoryChange}
+        disabled={dbLoading}
+        placeholder={dbLoading ? "Loading factories..." : undefined}
       />
 
       {/* ── Machine (conditional on factory) ────────────────────── */}
@@ -320,9 +361,9 @@ const ProductionForm = () => {
         value={machine}
         onChange={handleMachineChange}
         placeholder={
-          factory ? "Pilih mesin" : "Pilih factory terlebih dahulu"
+          dbLoading ? "Loading..." : factory ? "Pilih mesin" : "Pilih factory terlebih dahulu"
         }
-        disabled={!factory}
+        disabled={!factory || dbLoading}
       />
 
       {/* ── Shift ───────────────────────────────────────────────── */}
@@ -336,10 +377,11 @@ const ProductionForm = () => {
       {/* ── Operator (optional) ─────────────────────────────────── */}
       <CustomSelect
         label="Operator"
-        options={[...OPERATORS]}
+        options={operators}
         value={operator}
         onChange={setOperator}
-        placeholder="Tolong Pilih Operator"
+        placeholder={dbLoading ? "Loading operators..." : "Tolong Pilih Operator"}
+        disabled={dbLoading}
       />
 
       {/* ── Tonase (read-only, shows when machine selected) ─────── */}
@@ -356,18 +398,18 @@ const ProductionForm = () => {
         </div>
       )}
 
-      {/* ── Sebango (conditional on machine) ────────────────────── */}
-      {machine && (
-        <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-          <CustomSelect
-            label="Sebango"
-            options={sebangoOptions}
-            value={sebango}
-            onChange={handleSebangoChange}
-            placeholder="Tolong pilih sebango"
-          />
-        </div>
-      )}
+      {/* ── Sebango (independent of machine) ────────────────────── */}
+      <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+        <CustomSelect
+          label="Sebango"
+          options={sebangoOptions}
+          value={sebango}
+          onChange={handleSebangoChange}
+          placeholder={dbLoading ? "Loading sebango..." : "Tolong pilih sebango"}
+          disabled={dbLoading}
+          searchable
+        />
+      </div>
 
       {/* ── Detail Produksi (collapsible, shows when sebango selected) */}
       {sebango && detail && (
@@ -421,6 +463,11 @@ const ProductionForm = () => {
               <ReadOnlyField
                 label="Part Weight Gentan-I"
                 value={detail.partWeightGentanI}
+                unit="GRAM"
+              />
+              <ReadOnlyField
+                label="Runner Weight Gentan-I"
+                value={detail.runnerWeightGentanI}
                 unit="GRAM"
               />
             </div>

@@ -91,9 +91,9 @@ const ScanPage = () => {
                     <div className="flex items-center gap-1.5">
                         <span className="text-[11px] text-white/50">Powered by</span>
                         <img
-                            src="./aris.jpg"
+                            src="./ARIS.png"
                             alt="ARIS"
-                            className="h-5 w-auto object-contain"
+                            className="h-12 w-auto object-contain"
                             onError={(e) => {
                                 (e.target as HTMLImageElement).style.display = "none";
                                 (e.target as HTMLImageElement).parentElement!.insertAdjacentHTML(
@@ -208,7 +208,7 @@ const ScanPage = () => {
                             : "scan-panel-closed"
                     )}
                     style={{
-                        background: "#202427",
+                        background: "#141518",
                         borderRadius: "24px 24px 0 0",
                         boxShadow: "inset 0 2px 6px rgba(255,255,255,0.04)",
                     }}
