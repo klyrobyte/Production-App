@@ -75,7 +75,7 @@ async function verifyJWERequest(req, res, next) {
         const { _timestamp, _nonce } = decryptedPayload;
 
         if (!_timestamp || !_nonce) {
-             return res.status(401).send("Unauthorized: Missing Anti-Replay Tokens in Payload");
+            return res.status(401).send("Unauthorized: Missing Anti-Replay Tokens in Payload");
         }
 
         const now = Date.now();
@@ -94,7 +94,7 @@ async function verifyJWERequest(req, res, next) {
 
         // Put legitimate data back onto the request object
         req.decryptedBody = decryptedPayload;
-        
+
         next();
     } catch (err) {
         console.error("JWE Decryption Failed:", err.message);
@@ -170,7 +170,140 @@ app.post('/api/dept', verifyJWERequest, async (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-    console.log(`🔒 Secure Backend server running on http://127.0.0.1:${PORT}`);
+// Endpoint to submit Production Data (prodata)
+app.post('/api/prodata', verifyJWERequest, async (req, res) => {
+    try {
+        const {
+            date, factory, tonase, sebango, shift, operator, mesin,
+            act_total, act_ok, act_ct, plan_dangai, act_dangai, act_weight, loss_time,
+            ng_awal, ng_proses, dan_go, dan_go_part, trial,
+            plan_total, waste_weight
+        } = req.decryptedBody;
+
+        // 1. Validation: ACT_TOTAL >= ACT_OK
+        if (Number(act_total) < Number(act_ok)) {
+            return res.status(400).send("Validasi error: pokoknya ACT_TOTAL itu nggak boleh kurang dari ACT_OK.");
+        }
+
+        // 2. Validation & Derivation: NG_TOTAL = ACT_TOTAL - ACT_OK
+        const ng_total = Number(act_total) - Number(act_ok);
+
+        // 3. Validation: NG_AWAL + NG_PROSES === NG_TOTAL
+        if ((Number(ng_awal) + Number(ng_proses)) !== ng_total) {
+            return res.status(400).send("Validation Error: Intinya mah jumlah NG_AWAL plus NG_PROSES itu ya NG_TOTAL. Harus seimbang kiri-kanan, nggak boleh kurang, nggak boleh lebih. Kalau beda, berarti hitungannya ada yang meleset.");
+        }
+
+        // 4. KPI Calcs
+        let ok_rasio = 0;
+        if (Number(act_total) > 0) {
+            ok_rasio = (Number(act_ok) / Number(act_total)) * 100;
+        }
+
+        let efisiensi = 0;
+        if (Number(plan_total) > 0) {
+            efisiensi = (Number(act_total) / Number(plan_total)) * 100;
+        }
+
+        let budomari = 0;
+        const totalWeight = Number(act_weight) + Number(waste_weight);
+        if (totalWeight > 0) {
+            budomari = (Number(act_weight) / totalWeight) * 100;
+        }
+
+        // 5. Insert or Update Database
+        let resultId;
+        if (req.decryptedBody.id) {
+            const updateQuery = `
+                UPDATE prodata SET
+                    date = $1, factory = $2, tonase = $3, sebango = $4, shift = $5, operator = $6, mesin = $7,
+                    act_total = $8, act_ok = $9, act_ct = $10, plan_dangai = $11, act_dangai = $12, act_weight = $13, loss_time = $14,
+                    ng_awal = $15, ng_proses = $16, ng_total = $17, dan_go = $18, dan_go_part = $19, trial = $20,
+                    ok_rasio = ROUND($21::numeric, 3), efisiensi = ROUND($22::numeric, 3), budomari = ROUND($23::numeric, 2)
+                WHERE id = $24 RETURNING id
+            `;
+            const values = [
+                date, factory, tonase, sebango, shift, operator, mesin,
+                act_total, act_ok, act_ct, plan_dangai, act_dangai, act_weight, loss_time,
+                ng_awal, ng_proses, ng_total, dan_go, dan_go_part, trial,
+                ok_rasio, efisiensi, budomari, req.decryptedBody.id
+            ];
+            const { rows } = await pool.query(updateQuery, values);
+            if (rows.length === 0) {
+                return res.status(404).send("Hmmm, data yang mau di-update nggak ketemu. Kayaknya emang nggak kedaftar dari awal..");
+            }
+            resultId = rows[0].id;
+        } else {
+            const insertQuery = `
+                INSERT INTO prodata (
+                    date, factory, tonase, sebango, shift, operator, mesin,
+                    act_total, act_ok, act_ct, plan_dangai, act_dangai, act_weight, loss_time,
+                    ng_awal, ng_proses, ng_total, dan_go, dan_go_part, trial,
+                    ok_rasio, efisiensi, budomari
+                ) VALUES (
+                    $1, $2, $3, $4, $5, $6, $7,
+                    $8, $9, $10, $11, $12, $13, $14,
+                    $15, $16, $17, $18, $19, $20,
+                    ROUND($21::numeric, 3), ROUND($22::numeric, 3), ROUND($23::numeric, 2)
+                ) RETURNING id
+            `;
+            const values = [
+                date, factory, tonase, sebango, shift, operator, mesin,
+                act_total, act_ok, act_ct, plan_dangai, act_dangai, act_weight, loss_time,
+                ng_awal, ng_proses, ng_total, dan_go, dan_go_part, trial,
+                ok_rasio, efisiensi, budomari
+            ];
+            const { rows } = await pool.query(insertQuery, values);
+            resultId = rows[0].id;
+        }
+
+        await sendEncryptedResponse(res, { success: true, id: resultId });
+    } catch (error) {
+        console.error('Error saat menyimpan data:', error);
+        res.status(500).send('Gagal memproses data produksi');
+    }
 });
+
+const PORT = process.env.PORT || 5000;
+
+// Initialize missing tables on startup
+async function initDB() {
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS prodata (
+                id SERIAL PRIMARY KEY,
+                date DATE,
+                factory VARCHAR,
+                tonase VARCHAR,
+                sebango VARCHAR,
+                shift VARCHAR,
+                operator VARCHAR,
+                mesin VARCHAR,
+                act_total INTEGER,
+                act_ok INTEGER,
+                act_ct NUMERIC,
+                plan_dangai NUMERIC,
+                act_dangai NUMERIC,
+                act_weight NUMERIC,
+                loss_time NUMERIC,
+                ng_awal INTEGER,
+                ng_proses INTEGER,
+                ng_total INTEGER,
+                dan_go VARCHAR,
+                dan_go_part VARCHAR,
+                trial VARCHAR,
+                ok_rasio NUMERIC(6,3),
+                efisiensi NUMERIC(6,3),
+                budomari NUMERIC(6,2),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        console.log("✅ Database tables initialized (prodata verified)");
+        app.listen(PORT, () => {
+            console.log(`🔒 Secure Backend server running on http://127.0.0.1:${PORT}`);
+        });
+    } catch (err) {
+        console.error("Failed to initialize database schema:", err);
+    }
+}
+
+initDB();

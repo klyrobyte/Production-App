@@ -93,10 +93,10 @@ export function useProductionData() {
             // STEP 2: Background Database Sync via secure API
             try {
                 const [machinesData, operatorsData, sebangoParsed, deptParsed] = await Promise.all([
-                    secureFetch('http://127.0.0.1:5000/api/machines'),
-                    secureFetch('http://127.0.0.1:5000/api/operators'),
-                    secureFetch('http://127.0.0.1:5000/api/sebango'),
-                    secureFetch('http://127.0.0.1:5000/api/dept')
+                    secureFetch('/api/machines'),
+                    secureFetch('/api/operators'),
+                    secureFetch('/api/sebango'),
+                    secureFetch('/api/dept')
                 ]);
 
                 // Override UI silently with fresh DB data if available
@@ -104,14 +104,14 @@ export function useProductionData() {
                 setOperators(operatorsData);
                 setSebangoData(sebangoParsed);
                 setDeptData(deptParsed);
-                
+
                 setLoading(false);
                 setError(null);
             } catch (err: any) {
                 console.error("Background sync with database failed. Offline JSON mode remains active:", err.message);
                 // We do not set the global error state if the UI is already populated from JSON
                 if (data.length === 0) {
-                    setError('Error connecting securely to database, and no offline data was found.');
+                    setError('Gagal mengambil database, system akan menggunakan data lokal');
                     setLoading(false);
                 }
             }
@@ -119,7 +119,7 @@ export function useProductionData() {
 
         // We only fetch once on mount
         fetchDualSystem();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Compute derived states from 'data'
