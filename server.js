@@ -263,6 +263,38 @@ app.post('/api/prodata', verifyJWERequest, async (req, res) => {
     }
 });
 
+// Endpoint to fetch Statistik aggregated KPIs based on Month
+app.post('/api/prodata/stats', verifyJWERequest, async (req, res) => {
+    try {
+        const payload = req.decryptedBody || {};
+        const targetMonth = payload.month; // e.g., '2026-02'
+
+        if (!targetMonth) {
+            return res.status(400).send("Gagal: Parameter bulan tidak ada.");
+        }
+
+        const query = `
+            SELECT 
+                COALESCE(SUM(act_total), 0) AS total_output,
+                COALESCE(SUM(act_ok), 0) AS total_ok,
+                COALESCE(SUM(ng_total), 0) AS total_ng,
+                COALESCE(AVG(ok_rasio), 0) AS avg_ok_ratio,
+                COALESCE(AVG(efisiensi), 0) AS avg_efisiensi,
+                COALESCE(AVG(budomari), 0) AS avg_budomari
+            FROM prodata
+            WHERE TO_CHAR(date, 'YYYY-MM') = $1
+        `;
+
+        const { rows } = await pool.query(query, [targetMonth]);
+        const result = rows[0] || {};
+        
+        await sendEncryptedResponse(res, result);
+    } catch (error) {
+        console.error('Error fetching stats:', error);
+        res.status(500).send('Gagal memuat statistik data.');
+    }
+});
+
 const PORT = process.env.PORT || 5000;
 
 // Initialize missing tables on startup

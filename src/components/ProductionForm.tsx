@@ -19,6 +19,7 @@ import { secureFetch } from "@/lib/api";
 import LossTimePopup, { LossTimeData } from "@/components/LossTimePopup";
 import NgDataPopup, { NgDataValues } from "@/components/NgDataPopup";
 import NgProcessPopup, { NgProcessValues } from "@/components/NgProcessPopup";
+import TrialTimePopup, { TrialDataValues } from "@/components/TrialTimePopup";
 
 // ── Reusable dropdown ─────────────────────────────────────────────────
 interface CustomSelectProps {
@@ -223,6 +224,10 @@ const ProductionForm = () => {
   const [danGoPopupOpen, setDanGoPopupOpen] = useState(false);
   const [danGoData, setDanGoData] = useState<NgDataValues | null>(null);
 
+  // Trial Popup states
+  const [trialPopupOpen, setTrialPopupOpen] = useState(false);
+  const [trialData, setTrialData] = useState<TrialDataValues | null>(null);
+
   // NgAwal Popup states
   const [ngAwalPopupOpen, setNgAwalPopupOpen] = useState(false);
   const [ngAwalData, setNgAwalData] = useState<NgDataValues | null>(null);
@@ -316,10 +321,10 @@ const ProductionForm = () => {
     setNgTengahProses("");
     setNgProcessData(null);
     setNgProcessPopupOpen(false);
-    setDanGo("");
-    setDanGoData(null);
     setDanGoPopupOpen(false);
     setTrial("");
+    setTrialData(null);
+    setTrialPopupOpen(false);
     setDanGoPart("");
     setFormError(null);
     setSavedId(null);
@@ -743,6 +748,7 @@ const ProductionForm = () => {
         headerRight={
           <button
             type="button"
+            onClick={() => setTrialPopupOpen(true)}
             className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
           >
             <span>(Tambahkan Detail)</span>
@@ -890,6 +896,16 @@ const ProductionForm = () => {
           }, 0);
 
           setNgTengahProses(totalNg.toString());
+        }}
+      />
+
+      <TrialTimePopup
+        open={trialPopupOpen}
+        onClose={() => setTrialPopupOpen(false)}
+        initialData={trialData || null}
+        onSubmit={(data) => {
+          setTrialData(data);
+          setTrial(data.totalDango); // Automatically sync the sum back to the input
         }}
       />
     </div>

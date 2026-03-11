@@ -1,11 +1,11 @@
 import { useState } from "react";
 import AppHeader from "@/components/AppHeader";
 import ProductionForm from "@/components/ProductionForm";
-import ProfileView from "@/components/ProfileView";
+import Statistik from "@/components/Statistik";
 import BottomNav from "@/components/BottomNav";
 
 const Index = () => {
-  const [activeTab, setActiveTab] = useState<"beranda" | "scan" | "profil">("beranda");
+  const [activeTab, setActiveTab] = useState<"beranda" | "scan" | "statistik">("beranda");
 
   return (
     <div className="min-h-screen bg-background flex flex-col max-w-md mx-auto">
@@ -15,7 +15,7 @@ const Index = () => {
 
         <div className="mt-2">
           {activeTab === "beranda" && <ProductionForm />}
-          {activeTab === "profil" && <ProfileView />}
+          {activeTab === "statistik" && <Statistik />}
         </div>
       </div>
 
