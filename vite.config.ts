@@ -11,11 +11,23 @@ export default defineConfig(({ mode }) => ({
     hmr: {
       overlay: false,
     },
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:5000',
+        changeOrigin: true
+      }
+    }
   },
   plugins: [react()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+  },
+  // Disable source maps to hide the original source code in the browser's developer tools
+  build: {
+    sourcemap: false, 
+    // Minify code to make it look "encrypted"/unreadable in production
+    minify: "esbuild", 
   },
 }));
