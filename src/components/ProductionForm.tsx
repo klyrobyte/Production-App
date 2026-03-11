@@ -13,6 +13,9 @@ import {
   SHIFTS,
 } from "@/data/productionData";
 import { useProductionData, SebangoDetail } from "@/hooks/useProductionData";
+import LossTimePopup, { LossTimeData } from "@/components/LossTimePopup";
+import NgDataPopup, { NgDataValues } from "@/components/NgDataPopup";
+import NgProcessPopup, { NgProcessValues } from "@/components/NgProcessPopup";
 
 // ── Reusable dropdown ─────────────────────────────────────────────────
 interface CustomSelectProps {
@@ -209,10 +212,28 @@ const ProductionForm = () => {
   const [actualDanGai, setActualDanGai] = useState("");
   const [lossTime, setLossTime] = useState("");
 
+  // LossTime Popup states
+  const [lossTimePopupOpen, setLossTimePopupOpen] = useState(false);
+  const [lossTimeData, setLossTimeData] = useState<LossTimeData | null>(null);
+
+  // Dan Go Popup states
+  const [danGoPopupOpen, setDanGoPopupOpen] = useState(false);
+  const [danGoData, setDanGoData] = useState<NgDataValues | null>(null);
+
+  // NgAwal Popup states
+  const [ngAwalPopupOpen, setNgAwalPopupOpen] = useState(false);
+  const [ngAwalData, setNgAwalData] = useState<NgDataValues | null>(null);
+
+  // NgProcess (NG Tengah Proses) Popup states
+  const [ngProcessPopupOpen, setNgProcessPopupOpen] = useState(false);
+  const [ngProcessData, setNgProcessData] = useState<NgProcessValues | null>(null);
+
   // Detail NG fields
   const [ngAwal, setNgAwal] = useState("");
   const [ngTengahProses, setNgTengahProses] = useState("");
-  const [ngTotal, setNgTotal] = useState("");
+
+  const computedNgTotal = (Number(ngAwal) || 0) + (Number(ngTengahProses) || 0);
+  const ngTotal = computedNgTotal > 0 ? computedNgTotal.toString() : "";
 
   // Lain Lain Nya fields
   const [danGo, setDanGo] = useState("");
@@ -533,6 +554,7 @@ const ProductionForm = () => {
         headerRight={
           <button
             type="button"
+            onClick={() => setLossTimePopupOpen(true)}
             className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
           >
             <span>(Tambahkan Detail)</span>
@@ -554,7 +576,8 @@ const ProductionForm = () => {
         headerRight={
           <button
             type="button"
-            className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+            onClick={() => setNgAwalPopupOpen(true)}
+            className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors pointer-events-auto relative z-10"
           >
             <span>(Tambahkan Detail)</span>
             <Plus className="h-4 w-4 rounded-md bg-card p-0.5" />
@@ -570,7 +593,8 @@ const ProductionForm = () => {
         headerRight={
           <button
             type="button"
-            className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+            onClick={() => setNgProcessPopupOpen(true)}
+            className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors pointer-events-auto relative z-10"
           >
             <span>(Tambahkan Detail)</span>
             <Plus className="h-4 w-4 rounded-md bg-card p-0.5" />
@@ -578,10 +602,9 @@ const ProductionForm = () => {
         }
       />
 
-      <InputField
+      <ReadOnlyField
         label="(NG) Total"
-        value={ngTotal}
-        onChange={setNgTotal}
+        value={ngTotal || "0"}
         unit="PCS"
       />
 
@@ -595,15 +618,6 @@ const ProductionForm = () => {
         value={danGo}
         onChange={setDanGo}
         unit="PCS"
-        headerRight={
-          <button
-            type="button"
-            className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <span>(Tambahkan Detail)</span>
-            <Plus className="h-4 w-4 rounded-md bg-card p-0.5" />
-          </button>
-        }
       />
 
       <InputField
@@ -686,6 +700,71 @@ const ProductionForm = () => {
           Simpan Aja
         </button>
       </div>
+
+      <LossTimePopup
+        open={lossTimePopupOpen}
+        onClose={() => setLossTimePopupOpen(false)}
+        initialTotal={lossTimeData?.totalLossTime ?? (Number(lossTime) || 0)}
+        initialEntries={lossTimeData?.entries || []}
+        onSubmit={(data) => {
+          setLossTimeData(data);
+          setLossTime(data.totalLossTime.toString());
+        }}
+      />
+
+      <NgDataPopup
+        open={ngAwalPopupOpen}
+        onClose={() => setNgAwalPopupOpen(false)}
+        initialData={ngAwalData || undefined}
+        title="INPUT DATA NG AWAL"
+        onSubmit={(data) => {
+          setNgAwalData(data);
+
+          const totalNg = Object.values(data).reduce((acc, curr) => {
+            const val = Number(curr);
+            return acc + (!isNaN(val) ? val : 0);
+          }, 0);
+
+          setNgAwal(totalNg.toString());
+        }}
+      />
+
+      <NgDataPopup
+        open={danGoPopupOpen}
+        onClose={() => setDanGoPopupOpen(false)}
+        initialData={danGoData || undefined}
+        title="INPUT DATA DAN GO"
+        onSubmit={(data) => {
+          setDanGoData(data);
+
+          // Calculate the total automatically for the Dan Go field
+          const totalNg = Object.values(data).reduce((acc, curr) => {
+            const val = Number(curr);
+            return acc + (!isNaN(val) ? val : 0);
+          }, 0);
+
+          setDanGo(totalNg.toString());
+        }}
+      />
+
+      <NgProcessPopup
+        open={ngProcessPopupOpen}
+        onClose={() => setNgProcessPopupOpen(false)}
+        initialData={ngProcessData || undefined}
+        title="INPUT DATA NG TENGAH PROSES"
+        onSubmit={(data) => {
+          setNgProcessData(data);
+
+          // Calculate the total automatically for the NG Tengah Proses field
+          const totalNg = Object.entries(data).reduce((acc, [key, curr]) => {
+            if (key === 'keterangan') return acc;
+            const val = Number(curr);
+            return acc + (!isNaN(val) ? val : 0);
+          }, 0);
+
+          setNgTengahProses(totalNg.toString());
+        }}
+      />
     </div>
   );
 };
