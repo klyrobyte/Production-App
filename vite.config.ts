@@ -18,4 +18,10 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  // Disable source maps to hide the original source code in the browser's developer tools
+  build: {
+    sourcemap: false, 
+    // Minify code to make it look "encrypted"/unreadable in production
+    minify: "esbuild", 
+  },
 }));

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { secureFetch, decryptPayload } from '@/lib/api';
 
 // Interfaces based on the database columns
 export interface MachineRecord {
@@ -58,39 +59,67 @@ export function useProductionData() {
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
+        const fetchDualSystem = async () => {
+            // STEP 1: Fast local JSON load (Offline Support & Instant UX)
             try {
                 const [machinesRes, operatorsRes, sebangoRes, deptRes] = await Promise.all([
-                    fetch('http://127.0.0.1:5000/api/machines'),
-                    fetch('http://127.0.0.1:5000/api/operators'),
-                    fetch('http://127.0.0.1:5000/api/sebango'),
-                    fetch('http://127.0.0.1:5000/api/dept')
+                    fetch('/json/sheet1.json'),
+                    fetch('/json/operator.json'),
+                    fetch('/json/sebangodb.json'),
+                    fetch('/json/dept.json')
                 ]);
 
-                if (!machinesRes.ok) throw new Error('Failed to fetch machines data');
-                if (!operatorsRes.ok) throw new Error('Failed to fetch operators data');
-                if (!sebangoRes.ok) throw new Error('Failed to fetch sebango data');
-                if (!deptRes.ok) throw new Error('Failed to fetch dept data');
+                if (machinesRes.ok && operatorsRes.ok && sebangoRes.ok && deptRes.ok) {
+                    const machinesText = await machinesRes.text();
+                    const operatorsText = await operatorsRes.text();
+                    const sebangoText = await sebangoRes.text();
+                    const deptText = await deptRes.text();
 
-                const machinesData = await machinesRes.json();
-                const operatorsData = await operatorsRes.json();
-                const sebangoParsed = await sebangoRes.json();
-                const deptParsed = await deptRes.json();
+                    const machinesData = await decryptPayload(machinesText);
+                    const operatorsData = await decryptPayload(operatorsText);
+                    const sebangoParsed = await decryptPayload(sebangoText);
+                    const deptParsed = await decryptPayload(deptText);
 
+                    setData(machinesData);
+                    setOperators(operatorsData);
+                    setSebangoData(sebangoParsed);
+                    setDeptData(deptParsed);
+                    setLoading(false); // Instantly stop loading indicator!
+                }
+            } catch (err) {
+                console.warn("Local JSON fallback data not found or failed decryption, waiting for DB...");
+            }
+
+            // STEP 2: Background Database Sync via secure API
+            try {
+                const [machinesData, operatorsData, sebangoParsed, deptParsed] = await Promise.all([
+                    secureFetch('http://127.0.0.1:5000/api/machines'),
+                    secureFetch('http://127.0.0.1:5000/api/operators'),
+                    secureFetch('http://127.0.0.1:5000/api/sebango'),
+                    secureFetch('http://127.0.0.1:5000/api/dept')
+                ]);
+
+                // Override UI silently with fresh DB data if available
                 setData(machinesData);
                 setOperators(operatorsData);
                 setSebangoData(sebangoParsed);
                 setDeptData(deptParsed);
-            } catch (err: any) {
-                console.error("Error fetching data:", err);
-                setError(err.message || 'Error connecting to database');
-            } finally {
+                
                 setLoading(false);
+                setError(null);
+            } catch (err: any) {
+                console.error("Background sync with database failed. Offline JSON mode remains active:", err.message);
+                // We do not set the global error state if the UI is already populated from JSON
+                if (data.length === 0) {
+                    setError('Error connecting securely to database, and no offline data was found.');
+                    setLoading(false);
+                }
             }
         };
 
-        fetchData();
+        // We only fetch once on mount
+        fetchDualSystem();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Compute derived states from 'data'
@@ -151,6 +180,8 @@ export function useProductionData() {
         dept: item.DEPT || item.dept
     })).filter(item => item.problem);
 
+    const clearError = () => setError(null);
+
     return {
         factories,
         machinesByFactory,
@@ -160,6 +191,7 @@ export function useProductionData() {
         sebangoDetails,
         deptOptions,
         loading,
-        error
+        error,
+        clearError
     };
 }

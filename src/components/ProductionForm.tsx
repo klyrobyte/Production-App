@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { id as localeId } from "date-fns/locale";
-import { CalendarIcon, ChevronDown, Plus } from "lucide-react";
+import { CalendarIcon, ChevronDown, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -199,7 +199,8 @@ const ProductionForm = () => {
     sebangoOptions,
     sebangoDetails,
     loading: dbLoading,
-    error: dbError
+    error: dbError,
+    clearError
   } = useProductionData();
 
   // Production input fields
@@ -325,8 +326,15 @@ const ProductionForm = () => {
       </h2>
 
       {dbError && (
-        <div className="rounded-xl bg-destructive/10 p-4 text-sm text-destructive border border-destructive/20 font-medium">
+        <div className="relative rounded-xl bg-destructive/10 p-4 text-sm text-destructive border border-destructive/20 font-medium">
           Error connecting to database: {dbError}
+          <button 
+            type="button" 
+            onClick={clearError}
+            className="absolute top-4 right-4 text-destructive/70 hover:text-destructive transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
