@@ -4,6 +4,11 @@ import { id as localeId } from "date-fns/locale";
 import { CalendarIcon, ChevronLeft, ChevronRight, TrendingUp, TrendingDown } from "lucide-react";
 import { secureFetch } from "@/lib/api";
 
+import { DonutNGChart } from "./DonutNGChart";
+import { ProductionTrendChart, TrendData } from "./ProductionTrendChart";
+import { MonthlySummaryCard } from "./MonthlySummaryCard";
+import { ShiftAnalysisChart, ShiftData } from "./ShiftAnalysisChart";
+
 interface StatsData {
   total_output: number;
   total_ok: number;
@@ -11,6 +16,12 @@ interface StatsData {
   avg_ok_ratio: number;
   avg_efisiensi: number;
   avg_budomari: number;
+  total_days: number;
+  best_factory: string;
+  best_shift: string;
+  donut: any;
+  trend: TrendData[];
+  shiftAnalysis: ShiftData[];
 }
 
 const Statistik = () => {
@@ -30,10 +41,10 @@ const Statistik = () => {
     try {
       const yearMonth = format(date, "yyyy-MM");
       const res = await secureFetch('/api/prodata/stats', {
-          method: 'POST',
-          body: JSON.stringify({ month: yearMonth })
+        method: 'POST',
+        body: JSON.stringify({ month: yearMonth })
       });
-      
+
       // Parse numbers from response explicitly (strings from DB sometimes)
       const data: StatsData = {
         total_output: Number(res.total_output || 0),
@@ -41,7 +52,13 @@ const Statistik = () => {
         total_ng: Number(res.total_ng || 0),
         avg_ok_ratio: Number(res.avg_ok_ratio || 0),
         avg_efisiensi: Number(res.avg_efisiensi || 0),
-        avg_budomari: Number(res.avg_budomari || 0)
+        avg_budomari: Number(res.avg_budomari || 0),
+        total_days: Number(res.total_days || 0),
+        best_factory: res.best_factory || "-",
+        best_shift: res.best_shift || "-",
+        donut: res.donut || {},
+        trend: res.trend || [],
+        shiftAnalysis: res.shiftAnalysis || [],
       };
 
       setStats(data);
@@ -75,82 +92,118 @@ const Statistik = () => {
 
   return (
     <div className="flex flex-col py-6 space-y-8 animate-in fade-in duration-500">
-      
-      <div className="px-2 space-y-4">
-          <h2 className="text-sm font-bold text-white tracking-wider">PROD. DATE</h2>
 
-          {/* Month Navigator replacing exact input to guarantee perfect formatting */}
-          <div className="flex items-center justify-between bg-[#26292c] rounded-[14px] p-2 border border-white/5 shadow-md">
-            <button 
-                onClick={handlePrevMonth}
-                className="p-3 text-white/60 hover:text-white rounded-xl hover:bg-white/5 transition-colors"
-            >
-                <ChevronLeft className="w-5 h-5" />
-            </button>
-            <div className="flex items-center gap-2">
-                <CalendarIcon className="w-4 h-4 text-white/50" />
-                <span className="text-[13px] font-bold text-white">
-                    {format(currentDate, "MMMM yyyy", { locale: localeId })}
-                </span>
-            </div>
-            <button 
-                onClick={handleNextMonth}
-                className="p-3 text-white/60 hover:text-white rounded-xl hover:bg-white/5 transition-colors"
-            >
-                <ChevronRight className="w-5 h-5" />
-            </button>
+      <div className="px-2 space-y-4">
+        <h2 className="text-sm font-bold text-white tracking-wider">PROD. DATE</h2>
+
+        {/* Month Navigator replacing exact input to guarantee perfect formatting */}
+        <div className="flex items-center justify-between bg-[#26292c] rounded-[14px] p-2 border border-white/5 shadow-md">
+          <button
+            onClick={handlePrevMonth}
+            className="p-3 text-white/60 hover:text-white rounded-xl hover:bg-white/5 transition-colors"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <div className="flex items-center gap-2">
+            <CalendarIcon className="w-4 h-4 text-white/50" />
+            <span className="text-[13px] font-bold text-white">
+              {format(currentDate, "MMMM yyyy", { locale: localeId })}
+            </span>
           </div>
+          <button
+            onClick={handleNextMonth}
+            className="p-3 text-white/60 hover:text-white rounded-xl hover:bg-white/5 transition-colors"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       <div className="px-2 space-y-4">
         <h3 className="text-sm font-medium text-white/90">
-            Ringkasan Produksi Bulanan ({format(currentDate, "MMMM yyyy", { locale: localeId })})
+          Ringkasan Produksi Bulanan ({format(currentDate, "MMMM yyyy", { locale: localeId })})
         </h3>
-        
+
         <h4 className="text-sm font-bold text-white tracking-wider pt-2">KPI</h4>
 
         {loading ? (
-            <div className="flex items-center justify-center py-20">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#2ea2f8]"></div>
-            </div>
+          <div className="flex items-center justify-center py-20">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#2ea2f8]"></div>
+          </div>
         ) : (
-            <div className="grid grid-cols-3 gap-3">
-                <StatCard 
-                    title="Total Output" 
-                    value={stats ? formatNumber(stats.total_output) : 0} 
-                    unit="Units" 
-                />
-                <StatCard 
-                    title="Total OK" 
-                    value={stats ? formatNumber(stats.total_ok) : 0} 
-                    unit="Units" 
-                />
-                <StatCard 
-                    title="Total NG" 
-                    value={stats ? formatNumber(stats.total_ng) : 0} 
-                    unit="Units" 
-                />
-                <StatCard 
-                    title="AVG OK Ratio" 
-                    value={stats ? formatPercent(stats.avg_ok_ratio) : "0"} 
-                    suffix="%"
-                    unit="Units" 
-                />
-                <StatCard 
-                    title="AVG Efisiensi" 
-                    value={stats ? formatPercent(stats.avg_efisiensi) : "0"} 
-                    suffix="%"
-                    unit="Units" 
-                />
-                <StatCard 
-                    title="AVG Budomari" 
-                    value={stats ? formatPercent(stats.avg_budomari) : "0"} 
-                    suffix="%"
-                    unit="Units" 
-                />
-            </div>
+          <div className="grid grid-cols-3 gap-3">
+            <StatCard
+              title="Total Output"
+              value={stats ? formatNumber(stats.total_output) : 0}
+              unit="Units"
+            />
+            <StatCard
+              title="Total OK"
+              value={stats ? formatNumber(stats.total_ok) : 0}
+              unit="Units"
+            />
+            <StatCard
+              title="Total NG"
+              value={stats ? formatNumber(stats.total_ng) : 0}
+              unit="Units"
+            />
+            <StatCard
+              title="AVG OK Ratio"
+              value={stats ? formatPercent(stats.avg_ok_ratio) : "0"}
+              suffix="%"
+              unit="Units"
+            />
+            <StatCard
+              title="AVG Efisiensi"
+              value={stats ? formatPercent(stats.avg_efisiensi) : "0"}
+              suffix="%"
+              unit="Units"
+            />
+            <StatCard
+              title="AVG Budomari"
+              value={stats ? formatPercent(stats.avg_budomari) : "0"}
+              suffix="%"
+              unit="Units"
+            />
+          </div>
         )}
       </div>
+
+      {/* Operational Insights */}
+      {!loading && stats && (
+        <div className="px-2 pt-6">
+          <h4 className="text-[15px] font-bold text-white tracking-wide mb-4">Wawasan Operasional</h4>
+          <div className="flex flex-col gap-4">
+            
+            {/* Donut Chart - Full width on narrow screens */}
+            <div className="w-full">
+              <DonutNGChart data={stats.donut} />
+            </div>
+
+            {/* Production Trend - Full width */}
+            <div className="w-full">
+              <ProductionTrendChart data={stats.trend} />
+            </div>
+
+            {/* Grid for Summary and Shift */}
+            <div className="grid grid-cols-2 gap-3 pb-8">
+              <div className="w-full">
+                <MonthlySummaryCard data={{
+                  total_days: stats.total_days,
+                  total_output: stats.total_output,
+                  avg_ok_ratio: stats.avg_ok_ratio,
+                  best_factory: stats.best_factory,
+                  best_shift: stats.best_shift
+                }} />
+              </div>
+              <div className="w-full">
+                <ShiftAnalysisChart data={stats.shiftAnalysis} />
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );

@@ -273,22 +273,92 @@ app.post('/api/prodata/stats', verifyJWERequest, async (req, res) => {
             return res.status(400).send("Gagal: Parameter bulan tidak ada.");
         }
 
-        const query = `
+        const queryKPI = `
             SELECT 
                 COALESCE(SUM(act_total), 0) AS total_output,
                 COALESCE(SUM(act_ok), 0) AS total_ok,
                 COALESCE(SUM(ng_total), 0) AS total_ng,
                 COALESCE(AVG(ok_rasio), 0) AS avg_ok_ratio,
                 COALESCE(AVG(efisiensi), 0) AS avg_efisiensi,
-                COALESCE(AVG(budomari), 0) AS avg_budomari
+                COALESCE(AVG(budomari), 0) AS avg_budomari,
+                COUNT(DISTINCT date) AS total_days
             FROM prodata
             WHERE TO_CHAR(date, 'YYYY-MM') = $1
         `;
 
-        const { rows } = await pool.query(query, [targetMonth]);
-        const result = rows[0] || {};
-        
-        await sendEncryptedResponse(res, result);
+        const queryDonut = `
+            SELECT
+                COALESCE(SUM(ng_awal), 0) AS sum_ng_awal,
+                COALESCE(SUM(ng_proses), 0) AS sum_ng_proses,
+                COALESCE(SUM(CAST(NULLIF(regexp_replace(dan_go, '[^0-9]', '', 'g'), '') AS INTEGER)), 0) AS sum_dan_go,
+                COALESCE(SUM(CAST(NULLIF(regexp_replace(trial, '[^0-9]', '', 'g'), '') AS INTEGER)), 0) AS sum_trial,
+                COALESCE(SUM(ng_total), 0) AS sum_ng_total
+            FROM prodata
+            WHERE TO_CHAR(date, 'YYYY-MM') = $1
+        `;
+
+        const queryTrend = `
+            SELECT 
+                TO_CHAR(date, 'YYYY-MM-DD') as date, 
+                COALESCE(SUM(act_total), 0) AS total, 
+                COALESCE(SUM(act_ok), 0) AS ok, 
+                COALESCE(SUM(ng_total), 0) AS ng 
+            FROM prodata 
+            WHERE TO_CHAR(date, 'YYYY-MM') = $1 
+            GROUP BY date 
+            ORDER BY date
+        `;
+
+        const queryShiftAnalysis = `
+            SELECT 
+                shift, 
+                COALESCE(SUM(act_ok), 0) AS ok 
+            FROM prodata 
+            WHERE TO_CHAR(date, 'YYYY-MM') = $1 AND shift IS NOT NULL AND shift != ''
+            GROUP BY shift 
+            ORDER BY shift
+        `;
+
+        const queryBestFactory = `
+            SELECT factory, SUM(act_ok) as total_ok 
+            FROM prodata 
+            WHERE TO_CHAR(date, 'YYYY-MM') = $1 AND factory IS NOT NULL AND factory != ''
+            GROUP BY factory 
+            ORDER BY total_ok DESC 
+            LIMIT 1
+        `;
+
+        const queryBestShift = `
+            SELECT shift, SUM(act_ok) as total_ok 
+            FROM prodata 
+            WHERE TO_CHAR(date, 'YYYY-MM') = $1 AND shift IS NOT NULL AND shift != ''
+            GROUP BY shift 
+            ORDER BY total_ok DESC 
+            LIMIT 1
+        `;
+
+        const [kpiRes, donutRes, trendRes, shiftRes, factoryRes, bestShiftRes] = await Promise.all([
+            pool.query(queryKPI, [targetMonth]),
+            pool.query(queryDonut, [targetMonth]),
+            pool.query(queryTrend, [targetMonth]),
+            pool.query(queryShiftAnalysis, [targetMonth]),
+            pool.query(queryBestFactory, [targetMonth]),
+            pool.query(queryBestShift, [targetMonth])
+        ]);
+
+        const kpiResult = kpiRes.rows[0] || {};
+        const donutResult = donutRes.rows[0] || {};
+        const bestFactory = factoryRes.rows[0]?.factory || "-";
+        const bestShift = bestShiftRes.rows[0]?.shift || "-";
+
+        await sendEncryptedResponse(res, {
+            ...kpiResult,
+            donut: donutResult,
+            trend: trendRes.rows || [],
+            shiftAnalysis: shiftRes.rows || [],
+            best_factory: bestFactory,
+            best_shift: bestShift
+        });
     } catch (error) {
         console.error('Error fetching stats:', error);
         res.status(500).send('Gagal memuat statistik data.');
