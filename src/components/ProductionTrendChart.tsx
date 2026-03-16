@@ -1,15 +1,28 @@
 import React from 'react';
 import {
-  ComposedChart,
-  Line,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  LineElement,
+  PointElement,
+  Title,
   Tooltip,
-  ResponsiveContainer,
-} from 'recharts';
+  Legend,
+} from 'chart.js';
+import { Bar } from 'react-chartjs-2';
 import { format, parseISO, isValid } from 'date-fns';
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  LineElement,
+  PointElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
 export interface TrendData {
   date: string;
@@ -18,35 +31,7 @@ export interface TrendData {
   ng: number;
 }
 
-const CustomTooltip = ({ active, payload }: any) => {
-  if (active && payload && payload.length) {
-    const fullDate = payload[0].payload.date;
-    let formattedDate = fullDate;
-    try {
-      const parsed = parseISO(fullDate);
-      if (isValid(parsed)) {
-        formattedDate = format(parsed, "d MMM yyyy");
-      }
-    } catch (e) { }
-
-    return (
-      <div className="bg-[#1f2937] border border-white/10 p-3 rounded-lg shadow-xl">
-        <p className="text-white/70 text-xs font-semibold mb-2">{formattedDate}</p>
-        {payload.map((entry: any, index: number) => (
-          <div key={`item-${index}`} className="flex items-center gap-2 text-xs">
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
-            <span className="text-white font-medium">{entry.name}:</span>
-            <span className="text-white font-bold ml-auto">{entry.value}</span>
-          </div>
-        ))}
-      </div>
-    );
-  }
-  return null;
-};
-
 export const ProductionTrendChart = ({ data }: { data: TrendData[] }) => {
-  // Safe date parsing to prevent crashes and explicit Number bindings
   const formattedData = (data || []).map(item => {
     let displayDate = item.date;
     try {
@@ -67,6 +52,115 @@ export const ProductionTrendChart = ({ data }: { data: TrendData[] }) => {
     };
   });
 
+  const chartDataJs = {
+    labels: formattedData.map(d => d.displayDate),
+    datasets: [
+      {
+        type: 'line' as const,
+        label: 'Total NG',
+        data: formattedData.map(d => d.ng),
+        borderColor: '#ef4444',
+        backgroundColor: '#ef4444',
+        borderWidth: 3,
+        tension: 0.4,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        fill: false,
+      },
+      {
+        type: 'bar' as const,
+        label: 'Total Output',
+        data: formattedData.map(d => d.total),
+        backgroundColor: '#2ea2f8',
+        borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 },
+        barPercentage: 0.8,
+        categoryPercentage: 0.9,
+      },
+      {
+        type: 'bar' as const,
+        label: 'Total OK',
+        data: formattedData.map(d => d.ok),
+        backgroundColor: '#22c55e',
+        borderRadius: { topLeft: 4, topRight: 4, bottomLeft: 0, bottomRight: 0 },
+        barPercentage: 0.8,
+        categoryPercentage: 0.9,
+      },
+    ],
+  };
+
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: {
+      mode: 'index' as const,
+      intersect: false,
+    },
+    plugins: {
+      legend: {
+        display: false,
+      },
+      tooltip: {
+        backgroundColor: '#1f2937',
+        titleColor: 'rgba(255,255,255,0.7)',
+        bodyColor: '#fff',
+        borderColor: 'rgba(255,255,255,0.1)',
+        borderWidth: 1,
+        padding: 12,
+        usePointStyle: true,
+        callbacks: {
+          title: function(context: any) {
+             const item = formattedData[context[0].dataIndex];
+             if (item && item.date) {
+                try {
+                  const parsed = parseISO(item.date);
+                  if (isValid(parsed)) return format(parsed, 'd MMM yyyy');
+                } catch (e) {}
+             }
+             return context[0].label;
+          },
+          label: function(context: any) {
+             return `${context.dataset.label}: ${context.raw}`;
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        grid: {
+          display: false,
+          drawOnChartArea: false,
+        },
+        ticks: {
+          color: 'rgba(255, 255, 255, 0.5)',
+          font: {
+            size: 10
+          }
+        },
+        border: {
+          display: false
+        }
+      },
+      y: {
+        grid: {
+          color: 'rgba(255, 255, 255, 0.05)',
+        },
+        ticks: {
+          color: 'rgba(255, 255, 255, 0.5)',
+          font: {
+            size: 10
+          },
+          callback: function(value: any) {
+             return value > 0 ? value : '0';
+          }
+        },
+        beginAtZero: true,
+        border: {
+          display: false
+        }
+      }
+    }
+  };
+
   return (
     <div className="bg-[#26292c] rounded-2xl p-5 border border-white/5 shadow-lg h-full flex flex-col">
       <div className="flex justify-between items-center mb-4">
@@ -78,30 +172,8 @@ export const ProductionTrendChart = ({ data }: { data: TrendData[] }) => {
         </div>
       </div>
 
-      <div className="w-full h-[250px] mt-2">
-        <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={formattedData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
-            <XAxis
-              dataKey="displayDate"
-              tick={{ fill: '#ffffff50', fontSize: 10 }}
-              axisLine={false}
-              tickLine={false}
-              dy={10}
-            />
-            <YAxis
-              tick={{ fill: '#ffffff50', fontSize: 10 }}
-              axisLine={false}
-              tickLine={false}
-              tickFormatter={(value) => value > 0 ? value : '0'}
-            />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
-
-            <Bar dataKey="total" name="Total Output" fill="#2ea2f8" radius={[4, 4, 0, 0]} maxBarSize={40} />
-            <Bar dataKey="ok" name="Total OK" fill="#22c55e" radius={[4, 4, 0, 0]} maxBarSize={40} />
-            <Line type="monotone" dataKey="ng" name="Total NG" stroke="#ef4444" strokeWidth={3} dot={{ r: 4, fill: '#ef4444', strokeWidth: 0 }} />
-          </ComposedChart>
-        </ResponsiveContainer>
+      <div className="w-full h-[250px] mt-2 relative">
+        <Bar data={chartDataJs as any} options={options as any} />
       </div>
     </div>
   );

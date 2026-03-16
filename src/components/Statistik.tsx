@@ -8,6 +8,7 @@ import { DonutNGChart } from "./DonutNGChart";
 import { ProductionTrendChart, TrendData } from "./ProductionTrendChart";
 import { MonthlySummaryCard } from "./MonthlySummaryCard";
 import { ShiftAnalysisChart, ShiftData } from "./ShiftAnalysisChart";
+import { KinerjaPabrik } from "./KinerjaPabrik";
 
 interface StatsData {
   total_output: number;
@@ -175,6 +176,11 @@ const Statistik = () => {
           <h4 className="text-[15px] font-bold text-white tracking-wide mb-4">Wawasan Operasional</h4>
           <div className="flex flex-col gap-4">
             
+            {/* Kinerja Pabrik - Full width */}
+            <div className="w-full">
+              <KinerjaPabrik currentDate={currentDate} />
+            </div>
+
             {/* Donut Chart - Full width on narrow screens */}
             <div className="w-full">
               <DonutNGChart data={stats.donut} />

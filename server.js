@@ -34,15 +34,38 @@ if (SECRET_BASE64) {
 const app = express();
 
 // 1. Strict CORS setup - only allow frontend origin
+// Added multiple local dev origins so frontend can run on 8080, 5173, or 127.0.0.1 variants.
+const allowedOrigins = [
+    'http://localhost:8080',
+    'http://127.0.0.1:8080',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173'
+];
+
 const corsOptions = {
-    origin: process.env.NODE_ENV === 'production' ? 'https://your-production-domain.com' : 'http://localhost:8080',
-    optionsSuccessStatus: 200 // some legacy browsers (IE11, various SmartTVs) choke on 204
+    origin: function (origin, callback) {
+        // Allow non-browser tools like curl/Postman (no origin)
+        if (!origin) return callback(null, true);
+
+        // Allow production domain if you set it later
+        if (process.env.NODE_ENV === 'production') {
+            return callback(null, true);
+        }
+
+        if (allowedOrigins.includes(origin)) {
+            return callback(null, true);
+        }
+
+        return callback(new Error(`CORS blocked for origin: ${origin}`), false);
+    },
+    optionsSuccessStatus: 200
 };
 app.use(cors(corsOptions));
 
 // We need raw bodies for JWE strings ('application/jose' custom content type)
-app.use(express.text({ type: 'application/jose' }));
-app.use(express.json());
+// But also need regular JSON for non-encrypted testing/internal fetches
+app.use(express.text({ type: ['application/jose', 'text/plain'] }));
+app.use(express.json({ strict: false }));
 
 // 2. Global Rate Limiter to prevent brute-force or DDoS
 const apiLimiter = rateLimit({
@@ -56,7 +79,16 @@ app.use('/api/', apiLimiter);
 
 // 3. JWE Encryption & Anti-Replay Middleware
 async function verifyJWERequest(req, res, next) {
+    // Track whether this request was truly encrypted or just plain JSON
+    req.isEncryptedRequest = false;
+
     // Check if the request is JWE encrypted
+    if (req.body && typeof req.body === 'object') {
+        req.decryptedBody = req.body;
+        req.isEncryptedRequest = false;
+        return next();
+    }
+
     if (!req.body || typeof req.body !== 'string') {
         return res.status(400).send("Bad Request: Expected JWE Encrypted Payload");
     }
@@ -94,6 +126,7 @@ async function verifyJWERequest(req, res, next) {
 
         // Put legitimate data back onto the request object
         req.decryptedBody = decryptedPayload;
+        req.isEncryptedRequest = true;
 
         next();
     } catch (err) {
@@ -130,7 +163,11 @@ const pool = new Pool({
 app.post('/api/machines', verifyJWERequest, async (req, res) => {
     try {
         const { rows } = await pool.query('SELECT id, factory, location, machine, tonase_t, tonase_raw FROM sheet1');
-        await sendEncryptedResponse(res, rows);
+        if (req.isEncryptedRequest) {
+            await sendEncryptedResponse(res, rows);
+        } else {
+            res.json(rows);
+        }
     } catch (error) {
         console.error('Error fetching machines:', error);
         res.status(500).json({ error: 'Failed to fetch machinery data' });
@@ -141,7 +178,11 @@ app.post('/api/machines', verifyJWERequest, async (req, res) => {
 app.post('/api/operators', verifyJWERequest, async (req, res) => {
     try {
         const { rows } = await pool.query('SELECT * FROM operators');
-        await sendEncryptedResponse(res, rows);
+        if (req.isEncryptedRequest) {
+            await sendEncryptedResponse(res, rows);
+        } else {
+            res.json(rows);
+        }
     } catch (error) {
         console.error('Error fetching operators:', error);
         res.status(500).json({ error: 'Failed to fetch operators data' });
@@ -152,7 +193,11 @@ app.post('/api/operators', verifyJWERequest, async (req, res) => {
 app.post('/api/sebango', verifyJWERequest, async (req, res) => {
     try {
         const { rows } = await pool.query('SELECT * FROM sebangodb');
-        await sendEncryptedResponse(res, rows);
+        if (req.isEncryptedRequest) {
+            await sendEncryptedResponse(res, rows);
+        } else {
+            res.json(rows);
+        }
     } catch (error) {
         console.error('Error fetching sebango:', error);
         res.status(500).json({ error: 'Failed to fetch sebango data' });
@@ -163,7 +208,11 @@ app.post('/api/sebango', verifyJWERequest, async (req, res) => {
 app.post('/api/dept', verifyJWERequest, async (req, res) => {
     try {
         const { rows } = await pool.query('SELECT * FROM dept');
-        await sendEncryptedResponse(res, rows);
+        if (req.isEncryptedRequest) {
+            await sendEncryptedResponse(res, rows);
+        } else {
+            res.json(rows);
+        }
     } catch (error) {
         console.error('Error fetching dept:', error);
         res.status(500).json({ error: 'Failed to fetch dept data' });
@@ -256,7 +305,11 @@ app.post('/api/prodata', verifyJWERequest, async (req, res) => {
             resultId = rows[0].id;
         }
 
-        await sendEncryptedResponse(res, { success: true, id: resultId });
+        if (req.isEncryptedRequest) {
+            await sendEncryptedResponse(res, { success: true, id: resultId });
+        } else {
+            res.json({ success: true, id: resultId });
+        }
     } catch (error) {
         console.error('Error saat menyimpan data:', error);
         res.status(500).send('Gagal memproses data produksi');
@@ -351,18 +404,79 @@ app.post('/api/prodata/stats', verifyJWERequest, async (req, res) => {
         const bestFactory = factoryRes.rows[0]?.factory || "-";
         const bestShift = bestShiftRes.rows[0]?.shift || "-";
 
-        await sendEncryptedResponse(res, {
+        const payloadResponse = {
             ...kpiResult,
             donut: donutResult,
             trend: trendRes.rows || [],
             shiftAnalysis: shiftRes.rows || [],
             best_factory: bestFactory,
             best_shift: bestShift
-        });
+        };
+
+        if (req.isEncryptedRequest) {
+            await sendEncryptedResponse(res, payloadResponse);
+        } else {
+            res.json(payloadResponse);
+        }
     } catch (error) {
         console.error('Error fetching stats:', error);
         res.status(500).send('Gagal memuat statistik data.');
     }
+});
+
+// Endpoint to fetch Kinerja Pabrik (Factory Performance)
+app.post('/api/prodata/kinerja', verifyJWERequest, async (req, res) => {
+    try {
+        const payload = req.decryptedBody || {};
+        const targetMonth = payload.month;
+
+        if (!targetMonth) {
+            return res.status(400).send("Gagal: Parameter bulan tidak ada.");
+        }
+
+        console.log(`[API Kinerja] Fetching data for month: ${targetMonth}`);
+
+        const queryKinerja = `
+            SELECT
+                factory,
+                SUM(act_total) AS factory_output,
+                SUM(act_ok) AS ok_total,
+                (SUM(act_ok) * 100.0 / NULLIF(SUM(act_total), 0)) AS ok_ratio,
+                (SUM(efisiensi::NUMERIC * act_total) / NULLIF(SUM(act_total), 0)) AS efisiensi,
+                (SUM(budomari::NUMERIC * NULLIF(act_weight::NUMERIC, 0)) / NULLIF(SUM(NULLIF(act_weight::NUMERIC, 0)), 0)) AS budomari
+            FROM prodata
+            WHERE TO_CHAR(date, 'YYYY-MM') = $1
+                AND factory IS NOT NULL
+                AND factory != ''
+            GROUP BY factory
+            ORDER BY factory ASC;
+        `;
+
+        const { rows } = await pool.query(queryKinerja, [targetMonth]);
+
+        const formattedRows = rows.map(row => ({
+            factory: row.factory,
+            factory_output: Number(row.factory_output) || 0,
+            ok: Number(row.ok_total) || 0,
+            ok_ratio: Number(row.ok_ratio) || 0,
+            efisiensi: Number(row.efisiensi) || 0,
+            budomari: Number(row.budomari) || 0
+        }));
+
+        if (req.isEncryptedRequest) {
+            await sendEncryptedResponse(res, formattedRows);
+        } else {
+            res.json(formattedRows);
+        }
+    } catch (error) {
+        console.error('Error fetching kinerja pabrik:', error);
+        res.status(500).send('Gagal memuat data kinerja pabrik.');
+    }
+});
+
+// Tiny health check for debugging
+app.get('/health', (req, res) => {
+    res.json({ status: 'ok' });
 });
 
 const PORT = process.env.PORT || 5000;
